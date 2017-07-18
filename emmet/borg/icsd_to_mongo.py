@@ -273,5 +273,5 @@ class icsdQueen(BorgQueen):
                                                   count / total * 100))
 
 if __name__ == '__main__':
-    path_to_dirs = os.getcwd()
+    path_to_dirs = '/home/jpalaks/Documents/MP_Work/ICSD_2015_cifs'
     icsdQueen(icsdDrone, rootpath=path_to_dirs, number_of_drones=1)
