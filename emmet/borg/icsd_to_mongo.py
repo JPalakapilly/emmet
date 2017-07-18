@@ -144,57 +144,65 @@ class icsdDrone(AbstractDrone):
 
     def bibtex_from_cif(cif_string):
 	    # if input is a cif filename read from file, else assume input is cif string
-    	if cif_string.endswith(".cif"):
-    		cif_dict = CifParser(cif_string).as_dict()
-    	else:
-    		cif_dict = CifParser.from_string(cif_string).as_dict()
+        if cif_string.endswith(".cif"):
+            cif_dict = CifParser(cif_string).as_dict()
+        else:
+            cif_dict = CifParser.from_string(cif_string).as_dict()
 
 
-    	orig_id = list(cif_dict.keys())[0]
+
+        orig_id = list(cif_dict.keys())[0]
 
     	#more accesable dict
-    	easy_dict = cif_dict[orig_id]
+        easy_dict = cif_dict[orig_id]
 
     	#generate bibTex string
-    	bibtex_str = "@article{"
+        bibtex_str = "@article{"
 
     	# use first author's last name as key + year. not sure about this
-    	bibtex_key = easy_dict['_publ_author_name'][0].replace(' ','')
-    	bibtex_key = bibtex_key[0:bibtex_key.find(',')]
-    	bibtex_key += easy_dict['_citation_year'][0]
-    	bibtex_str += bibtex_key+ ",\n"
+        bibtex_key = easy_dict['_publ_author_name'][0].replace(' ','')
+        bibtex_key = bibtex_key[0:bibtex_key.find(',')]
+        bibtex_key += easy_dict['_citation_year'][0]
+        bibtex_str += bibtex_key+ ",\n"
 
     	# add title
-    	bibtex_str += "title = {" + easy_dict['_publ_section_title']+ "},\n"
+        if '_publ_section_title' in easy_dict:
+            bibtex_str += "title = {" + easy_dict['_publ_section_title']+ "},\n"
 
     	# add authors
-    	bibtex_str += "author = {" + " and ".join(easy_dict['_publ_author_name'])+ "},\n"
+        if '_publ_author_name' in easy_dict:
+            bibtex_str += "author = {" + " and ".join(easy_dict['_publ_author_name'])+ "},\n"
 
     	# add journal title
-    	bibtex_str += "journal = {" + easy_dict['_citation_journal_full'][0]+ "},\n"
+        if '_citation_journal_full' in easy_dict:
+            bibtex_str += "journal = {" + easy_dict['_citation_journal_full'][0]+ "},\n"
 
     	# add year
-    	bibtex_str += "year = {" + easy_dict['_citation_year'][0]+ "},\n"
+        if '_citation_year' in easy_dict:
+            bibtex_str += "year = {" + easy_dict['_citation_year'][0]+ "},\n"
 
     	# add volume number
-    	bibtex_str += "volume = {" + easy_dict['_citation_journal_volume'][0]+ "},\n"
+        if '_citation_journal_volume' in easy_dict:
+            bibtex_str += "volume = {" + easy_dict['_citation_journal_volume'][0]+ "},\n"
 
     	# add pages
-    	bibtex_str += "pages = {" + easy_dict['_citation_page_first'][0] + "-" + easy_dict['_citation_page_last'][0] + "},\n"
+        if ('_citation_page_first' in easy_dict) and ('_citation_page_last' in easy_dict):
+            bibtex_str += "pages = {" + easy_dict['_citation_page_first'][0] + "-" + easy_dict['_citation_page_last'][0] + "},\n"
 
     	# add ASTM id
-    	bibtex_str += "ASTM_id = {" + easy_dict['_citation_journal_id_ASTM'][0]+ "},\n"
+        if '_citation_journal_id_ASTM' in easy_dict:
+            bibtex_str += "ASTM_id = {" + easy_dict['_citation_journal_id_ASTM'][0]+ "},\n"
 
     	#end string and normalize to ascii
-    	bibtex_str += "}"
+        bibtex_str += "}"
     	#bibtex_str = unicodedata.normalize('NFKD', bibtex_str).encode('ascii','ignore')
 
     	#print(bibtex_str)
 
-    	return bibtex_str
+        return bibtex_str
 
 
-    	return cif_string
+        return cif_string
 
 class icsdQueen(BorgQueen):
 
