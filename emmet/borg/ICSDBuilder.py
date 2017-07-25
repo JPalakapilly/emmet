@@ -8,7 +8,8 @@ import random
 import time
 import logging
 import sys
-
+import pymongo
+from pymongo import UpdateOne
 from maggma.stores import MongoStore
 from maggma.builder import Builder
 from maggma.runner import Runner
@@ -24,43 +25,47 @@ class ICSDBuilder(Builder):
 
     def get_items(self):
         items = []
-        print('Getting Items')
-        for db in sources:
-            items += db.collection.find()
-        print('Items Got')
-        return items
-
+        collec = sources[0].collection
+        formulas = collec.distinct('formula_reduced_abc')
+        for formula in formulas:
+            cursor = collec.find({'formula_reduced_abc':formula},projection=['icsd_id','snl'],sort=[('icsd_id',1)])
+            yield list(cursor)
 
     def process_item(self, item):
-        struc = Structure.from_dict(item['snl'])
-        print('Processing')
         m = StructureMatcher(
         ltol=0.2, stol=0.3, angle_tol=5, primitive_cell=True, scale=True,
         attempt_supercell=False, comparator=ElementComparator()
         )
-
-        matched = False
-        tcol = targets[0].collection
-        for doc in tcol.find({'formula_reduced_abc':item['formula_reduced_abc']},projection={'icsd_id':True,'snl':True,'formula_reduced_abc':True,'all_icsd_ids':True}):
-            if m.fit(struc,Structure.from_dict(doc['snl'])):
-                matched = True
-                if item['icsd_id'] in doc['all_icsd_ids']:
-                    print('{} already in target collection.(Under {})'.format(item['icsd_id'],doc['icsd_id']))
-                else:
-                    tcol.update_one({'icsd_id':doc['icsd_id']},{'$push':{'all_icsd_ids':item['icsd_id']}})
-                    print('{} filed under {}'.format(item['icsd_id'],doc['icsd_id']))
-                break
-
-        if not matched:
-            item['all_icsd_ids'] = [item['icsd_id']]
-            tcol.insert_one(item)
-
+        grouped = []
+        for unmatched in item:
+            matched = False
+            for group in grouped:
+                group_struc = Structure.from_dict(group[0]['snl'])
+                unmatched_struc = Structure.from_dict(unmatched['snl'])
+                if m.fit(group_struc,unmatched_struc):
+                    matched = True
+                    #print('{} under {}'.format(unmatched['icsd_id'],group[0]['icsd_id']))
+                    group.append(unmatched)
+                    break
+            if not matched:
+                grouped.append([unmatched])
+        return grouped
 
     def update_targets(self, items):
-        pass
-        # print("Received {} processed items".format(len(items)))
+        target = targets[0].collection
+        requests = []
+        for item in items:
+            for group in item:
+                doc = {}
+                doc['icsd_id'] = group[0]['icsd_id']
+                doc['all_icsd_ids'] = []
+                for struc in group:
+                    doc['all_icsd_ids'].append(struc['icsd_id'])
+                requests.append(UpdateOne({'icsd_id':doc['icsd_id']},{'$addToSet':{'all_icsd_ids': {'$each':doc['all_icsd_ids']}}},upsert=True))
+        target.bulk_write(requests)
 
-    def finalize(self):
+
+    def finalize(self, cursor):
         print("Finalizing ...")
 
         # Close any Mongo connections.
@@ -85,13 +90,12 @@ if __name__ == '__main__':
     sh.setFormatter('%(asctime)s %(levelname)s %(message)s')
     logger.addHandler(sh)
 
-    N = 10
-    get_chunk_size = 3
-    process_chunk_size = 2
+    get_chunk_size = 1000
+    process_chunk_size = 500
 
 
     sources = [MongoStore('ICSD','ICSD_files')]
-    targets = [MongoStore('ICSD','DerivedCol')]
+    targets = [MongoStore('ICSD','DerivedCollec')]
 
     mdb = ICSDBuilder(sources, targets, get_chunk_size=get_chunk_size,
                         process_chunk_size=process_chunk_size)
